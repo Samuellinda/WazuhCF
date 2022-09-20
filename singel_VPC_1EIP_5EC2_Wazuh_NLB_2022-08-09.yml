@@ -1,0 +1,1049 @@
+AWSTemplateFormatVersion: 2010-09-09
+Description: >-
+  AWS CloudFormation Sample Template for Wazuh Cluster in single VPC and single subnet 
+  **WARNING** This template creates 5 Amazon EC2 instance with Wazuh Cluster installation. 
+  You will be billed for the AWS resources used if you create a stack from this template.
+Parameters:
+  #VPCID:
+    #Description: The VPC-scoped resources will belong to this VPC.
+    #Default: WazuhCluster
+    #Type: AWS::EC2::VPC::Id
+  S3Bucketname:
+    AllowedPattern: "^[0-9a-zA-Z]+([0-9a-zA-Z]*[0-9a-zA-Z])*$"
+    Description: Must input a special S3 bucket name.The bucket name must contain only lowercase letters, numbers, periods (.), and dashes (-) and must follow Amazon S3 bucket restrictions and limitations.    
+    Type: String
+  WazuhLogFile:
+    Description: Wazuh Log file path to keep track of actions
+    Type: String  
+    Default: /var/log/wazuh-cloudformation.log
+  UpdateLogFile:
+    Description: Yum Update Log file path to keep track of actions
+    Type: String  
+    Default: /var/log/OS-Update.log
+  WazuhDashboardInstanceType:
+    Description: WazuhServer EC2 instance type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - t3a.medium
+      - t3a.large
+      - t3a.xlarge
+      - t3a.2xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5a.large
+      - c5a.xlarge
+      - c5a.2xlarge
+      - c5a.4xlarge
+      - c5a.8xlarge
+      - c6i.large
+      - c6i.xlarge
+      - c6i.2xlarge
+      - c6i.4xlargei
+      - c6i.8xlarge
+      - c6a.large
+      - c6a.xlarge
+      - c6a.2xlarge
+      - c6a.4xlargei
+      - c6a.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  WazuhWorkInstanceType:
+    Description: WazuhServer EC2 instance type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - t3a.medium
+      - t3a.large
+      - t3a.xlarge
+      - t3a.2xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5a.large
+      - c5a.xlarge
+      - c5a.2xlarge
+      - c5a.4xlarge
+      - c5a.8xlarge
+      - c6i.large
+      - c6i.xlarge
+      - c6i.2xlarge
+      - c6i.4xlargei
+      - c6i.8xlarge
+      - c6a.large
+      - c6a.xlarge
+      - c6a.2xlarge
+      - c6a.4xlargei
+      - c6a.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.
+  WazuhIndexInstanceType:
+    Description: WazuhServer EC2 instance type
+    Type: String
+    Default: t3.medium
+    AllowedValues:
+      - t3.medium
+      - t3.large
+      - t3.xlarge
+      - t3.2xlarge
+      - t3a.medium
+      - t3a.large
+      - t3a.xlarge
+      - t3a.2xlarge
+      - m5.large
+      - m5.xlarge
+      - m5.2xlarge
+      - m5.4xlarge
+      - m5.8xlarge
+      - c5.large
+      - c5.xlarge
+      - c5.2xlarge
+      - c5.4xlarge
+      - c5.9xlarge
+      - c5a.large
+      - c5a.xlarge
+      - c5a.2xlarge
+      - c5a.4xlarge
+      - c5a.8xlarge
+      - c6i.large
+      - c6i.xlarge
+      - c6i.2xlarge
+      - c6i.4xlargei
+      - c6i.8xlarge
+      - c6a.large
+      - c6a.xlarge
+      - c6a.2xlarge
+      - c6a.4xlargei
+      - c6a.8xlarge
+    ConstraintDescription: must be a valid EC2 instance type.        
+  KeyName:
+    Description: Name of an existing EC2 KeyPair to enable SSH access to the instance
+    Type: 'AWS::EC2::KeyPair::KeyName'
+    ConstraintDescription: must be the name of an existing EC2 KeyPair.
+  SSHLocation:
+    Description: ' The IP address range that can be used to SSH to the EC2 instances'
+    Type: String
+    MinLength: '9'
+    MaxLength: '18'
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: must be a valid IP CIDR range of the form x.x.x.x/x.
+Mappings:
+  Region2Examples:
+    ap-east-1:
+      Examples: 'https://s3-ap-east-1.amazonaws.com/cloudformation-examples-ap-east-1'
+    ap-northeast-1:
+      Examples: >-
+        https://s3-ap-northeast-1.amazonaws.com/cloudformation-examples-ap-northeast-1
+    ap-northeast-2:
+      Examples: >-
+        https://s3-ap-northeast-2.amazonaws.com/cloudformation-examples-ap-northeast-2
+    ap-northeast-3:
+      Examples: >-
+        https://s3-ap-northeast-3.amazonaws.com/cloudformation-examples-ap-northeast-3
+    ap-south-1:
+      Examples: 'https://s3-ap-south-1.amazonaws.com/cloudformation-examples-ap-south-1'
+    ap-southeast-1:
+      Examples: >-
+        https://s3-ap-southeast-1.amazonaws.com/cloudformation-examples-ap-southeast-1
+    ap-southeast-2:
+      Examples: >-
+        https://s3-ap-southeast-2.amazonaws.com/cloudformation-examples-ap-southeast-2
+    ca-central-1:
+      Examples: >-
+        https://s3-ca-central-1.amazonaws.com/cloudformation-examples-ca-central-1
+    cn-north-1:
+      Examples: >-
+        https://s3.cn-north-1.amazonaws.com.cn/cloudformation-examples-cn-north-1
+    cn-northwest-1:
+      Examples: >-
+        https://s3.cn-northwest-1.amazonaws.com.cn/cloudformation-examples-cn-northwest-1
+    eu-central-1:
+      Examples: >-
+        https://s3-eu-central-1.amazonaws.com/cloudformation-examples-eu-central-1
+    eu-north-1:
+      Examples: 'https://s3-eu-north-1.amazonaws.com/cloudformation-examples-eu-north-1'
+    eu-west-1:
+      Examples: 'https://s3-eu-west-1.amazonaws.com/cloudformation-examples-eu-west-1'
+    eu-west-2:
+      Examples: 'https://s3-eu-west-2.amazonaws.com/cloudformation-examples-eu-west-2'
+    eu-west-3:
+      Examples: 'https://s3-eu-west-3.amazonaws.com/cloudformation-examples-eu-west-3'
+    me-south-1:
+      Examples: 'https://s3-me-south-1.amazonaws.com/cloudformation-examples-me-south-1'
+    sa-east-1:
+      Examples: 'https://s3-sa-east-1.amazonaws.com/cloudformation-examples-sa-east-1'
+    us-east-1:
+      Examples: 'https://s3.amazonaws.com/cloudformation-examples-us-east-1'
+    us-east-2:
+      Examples: 'https://s3-us-east-2.amazonaws.com/cloudformation-examples-us-east-2'
+    us-west-1:
+      Examples: 'https://s3-us-west-1.amazonaws.com/cloudformation-examples-us-west-1'
+    us-west-2:
+      Examples: 'https://s3-us-west-2.amazonaws.com/cloudformation-examples-us-west-2'
+  AWSInstanceType2Arch:
+    t3.medium:
+      Arch: HVM64
+    t3.large:
+      Arch: HVM64
+    t3.xlarge:
+      Arch: HVM64
+    t3.2xlarge:
+      Arch: HVM64
+    t3a.medium:
+      Arch: HVM64
+    t3a.large:
+      Arch: HVM64
+    t3a.xlarge:
+      Arch: HVM64
+    t3a.2xlarge:
+      Arch: HVM64
+    m5.large:
+      Arch: HVM64
+    m5.xlarge:
+      Arch: HVM64
+    m5.2xlarge:
+      Arch: HVM64
+    m5.4xlarge:
+      Arch: HVM64
+    m5.8xlarge:
+      Arch: HVM64
+    c5.large:
+      Arch: HVM64
+    c5.xlarge:
+      Arch: HVM64
+    c5.2xlarge:
+      Arch: HVM64
+    c5.4xlarge:
+      Arch: HVM64
+    c5.9xlarge:
+      Arch: HVM64
+    c5a.large:
+      Arch: HVM64
+    c5a.xlarge:
+      Arch: HVM64
+    c5a.2xlarge:
+      Arch: HVM64
+    c5a.4xlarge:
+      Arch: HVM64
+    c5a.8xlarge:
+      Arch: HVM64
+    c6i.large:
+      Arch: HVM64
+    c6i.xlarge:
+      Arch: HVM64
+    c6i.2xlarge:
+      Arch: HVM64
+    c6i.4xlargei:
+      Arch: HVM64
+    c6i.8xlarge:
+      Arch: HVM64
+    c6a.large:
+      Arch: HVM64
+    c6a.xlarge:
+      Arch: HVM64
+    c6a.2xlarge:
+      Arch: HVM64
+    c6a.4xlargei:
+      Arch: HVM64
+    c6a.8xlarge:
+      Arch: HVM64
+  AWSInstanceType2NATArch:
+    t3.medium:
+      Arch: NATHVM64
+    t3.large:
+      Arch: NATHVM64
+    t3.xlarge:
+      Arch: NATHVM64
+    t3.2xlarge:
+      Arch: NATHVM64
+    t3a.medium:
+      Arch: NATHVM64
+    t3a.large:
+      Arch: NATHVM64
+    t3a.xlarge:
+      Arch: NATHVM64
+    t3a.2xlarge:
+      Arch: NATHVM64
+    m5.large:
+      Arch: NATHVM64
+    m5.xlarge:
+      Arch: NATHVM64
+    m5.2xlarge:
+      Arch: NATHVM64
+    m5.4xlarge:
+      Arch: NATHVM64
+    m5.8xlarge:
+      Arch: NATHVM64
+    c5.large:
+      Arch: NATHVM64
+    c5.xlarge:
+      Arch: NATHVM64
+    c5.2xlarge:
+      Arch: NATHVM64
+    c5.4xlarge:
+      Arch: NATHVM64
+    c5.9xlarge:
+      Arch: NATHVM64
+    c5a.large:
+      Arch: NATHVM64
+    c5a.xlarge:
+      Arch: NATHVM64
+    c5a.2xlarge:
+      Arch: NATHVM64
+    c5a.4xlarge:
+      Arch: NATHVM64
+    c5a.8xlarge:
+      Arch: NATHVM64
+    c6i.large:
+      Arch: NATHVM64
+    c6i.xlarge:
+      Arch: NATHVM64
+    c6i.2xlarge:
+      Arch: NATHVM64
+    c6i.4xlargei:
+      Arch: NATHVM64
+    c6i.8xlarge:
+      Arch: NATHVM64
+    c6a.large:
+      Arch: NATHVM64
+    c6a.xlarge:
+      Arch: NATHVM64
+    c6a.2xlarge:
+      Arch: NATHVM64
+    c6a.4xlargei:
+      Arch: NATHVM64
+    c6a.8xlarge:
+      Arch: NATHVM64
+  AWSRegionArch2AMI:
+    af-south-1:
+      HVM64: ami-0799fd71a56e64aa8
+      HVMG2: NOT_SUPPORTED
+    ap-east-1:
+      HVM64: ami-01c628c385b509fdc
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-1:
+      HVM64: ami-0ecb2a61303230c9d
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-2:
+      HVM64: ami-01711d925a1e4cc3a
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-3:
+      HVM64: ami-0bfdfe2977c12e24b
+      HVMG2: NOT_SUPPORTED
+    ap-south-1:
+      HVM64: ami-076e3a557efe1aa9c
+      HVMG2: NOT_SUPPORTED
+    ap-southeast-1:
+      HVM64: ami-0ff89c4ce7de192ea
+      HVMG2: NOT_SUPPORTED
+    ap-southeast-2:
+      HVM64: ami-0c641f2290e9cd048
+      HVMG2: NOT_SUPPORTED
+    ca-central-1:
+      HVM64: ami-041a9937e9118f3f3
+      HVMG2: NOT_SUPPORTED
+    cn-north-1:
+      HVM64: ami-04dac53f59f1a5713
+      HVMG2: NOT_SUPPORTED
+    cn-northwest-1:
+      HVM64: ami-07627413c7c9c8cff
+      HVMG2: NOT_SUPPORTED
+    eu-central-1:
+      HVM64: ami-0c956e207f9d113d5
+      HVMG2: NOT_SUPPORTED
+    eu-north-1:
+      HVM64: ami-01977e30682e5df74
+      HVMG2: NOT_SUPPORTED
+    eu-south-1:
+      HVM64: ami-07ad31c51829a4b4e
+      HVMG2: NOT_SUPPORTED
+    eu-west-1:
+      HVM64: ami-089950bc622d39ed8
+      HVMG2: NOT_SUPPORTED
+    eu-west-2:
+      HVM64: ami-0e34bbddc66def5ac
+      HVMG2: NOT_SUPPORTED
+    eu-west-3:
+      HVM64: ami-02d0b1ffa5f16402d
+      HVMG2: NOT_SUPPORTED
+    me-south-1:
+      HVM64: ami-0c97a4c7395eab056
+      HVMG2: NOT_SUPPORTED
+    sa-east-1:
+      HVM64: ami-0a9e90bd830396d02
+      HVMG2: NOT_SUPPORTED
+    us-east-1:
+      HVM64: ami-0d7734f53f491186b
+      HVMG2: NOT_SUPPORTED
+    us-east-2:
+      HVM64: ami-051dfed8f67f095f5
+      HVMG2: NOT_SUPPORTED
+    us-west-1:
+      HVM64: ami-0e4d9ed95865f3b40
+      HVMG2: NOT_SUPPORTED
+    us-west-2:
+      HVM64: ami-0cea098ed2ac54925
+      HVMG2: NOT_SUPPORTED
+  AWSRegionArch2AMI:
+    af-south-1:
+      HVM64: ami-0799fd71a56e64aa8
+      HVMG2: NOT_SUPPORTED
+    ap-east-1:
+      HVM64: ami-01c628c385b509fdc
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-1:
+      HVM64: ami-0ecb2a61303230c9d
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-2:
+      HVM64: ami-01711d925a1e4cc3a
+      HVMG2: NOT_SUPPORTED
+    ap-northeast-3:
+      HVM64: ami-0bfdfe2977c12e24b
+      HVMG2: NOT_SUPPORTED
+    ap-south-1:
+      HVM64: ami-076e3a557efe1aa9c
+      HVMG2: NOT_SUPPORTED
+    ap-southeast-1:
+      HVM64: ami-0ff89c4ce7de192ea
+      HVMG2: NOT_SUPPORTED
+    ap-southeast-2:
+      HVM64: ami-0c641f2290e9cd048
+      HVMG2: NOT_SUPPORTED
+    ca-central-1:
+      HVM64: ami-041a9937e9118f3f3
+      HVMG2: NOT_SUPPORTED
+    cn-north-1:
+      HVM64: ami-04dac53f59f1a5713
+      HVMG2: NOT_SUPPORTED
+    cn-northwest-1:
+      HVM64: ami-07627413c7c9c8cff
+      HVMG2: NOT_SUPPORTED
+    eu-central-1:
+      HVM64: ami-0c956e207f9d113d5
+      HVMG2: NOT_SUPPORTED
+    eu-north-1:
+      HVM64: ami-01977e30682e5df74
+      HVMG2: NOT_SUPPORTED
+    eu-south-1:
+      HVM64: ami-07ad31c51829a4b4e
+      HVMG2: NOT_SUPPORTED
+    eu-west-1:
+      HVM64: ami-089950bc622d39ed8
+      HVMG2: NOT_SUPPORTED
+    eu-west-2:
+      HVM64: ami-0e34bbddc66def5ac
+      HVMG2: NOT_SUPPORTED
+    eu-west-3:
+      HVM64: ami-02d0b1ffa5f16402d
+      HVMG2: NOT_SUPPORTED
+    me-south-1:
+      HVM64: ami-0c97a4c7395eab056
+      HVMG2: NOT_SUPPORTED
+    sa-east-1:
+      HVM64: ami-0a9e90bd830396d02
+      HVMG2: NOT_SUPPORTED
+    us-east-1:
+      HVM64: ami-0d7734f53f491186b
+      HVMG2: NOT_SUPPORTED
+    us-east-2:
+      HVM64: ami-051dfed8f67f095f5
+      HVMG2: NOT_SUPPORTED
+    us-west-1:
+      HVM64: ami-0e4d9ed95865f3b40
+      HVMG2: NOT_SUPPORTED
+    us-west-2:
+      HVM64: ami-0cea098ed2ac54925
+      HVMG2: NOT_SUPPORTED
+Resources:
+  Ec2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: ec2-instance-role
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties: 
+      InstanceProfileName: ec2-instance-profile
+      Path: /
+      Roles: 
+       - !Ref Ec2InstanceRole  
+  InstanceS3Policy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3Policy
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          -
+            Effect: Allow
+            Action:
+              - s3:*
+            Resource: "*"
+      Roles:
+        -
+          !Ref Ec2InstanceRole
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Description: Creating Amazon S3 bucket (Must be globally unique bucket name)
+    Properties:
+      BucketName: !Ref 'S3Bucketname'
+  VPC:
+    Type: 'AWS::EC2::VPC'
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+  Subnet:
+    Type: 'AWS::EC2::Subnet'
+    Properties:
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.0.0/24
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+  InternetGateway:
+    Type: 'AWS::EC2::InternetGateway'
+    Properties:
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+  AttachGateway:
+    Type: 'AWS::EC2::VPCGatewayAttachment'
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+  RouteTable:
+    Type: 'AWS::EC2::RouteTable'
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+  Route:
+    Type: 'AWS::EC2::Route'
+    DependsOn: AttachGateway
+    Properties:
+      RouteTableId: !Ref RouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  SubnetRouteTableAssociation:
+    Type: 'AWS::EC2::SubnetRouteTableAssociation'
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RouteTable
+  DashboardIPAddress:
+    Type: 'AWS::EC2::EIP'
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc
+      InstanceId: !Ref WazuhIndexNode1Instance
+  NLBIPAddress:
+    Type: 'AWS::EC2::EIP'
+    DependsOn: AttachGateway
+    Properties:
+      Domain: vpc    
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcEndpointType: Gateway
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal: "*"
+            Action:
+              - "*"
+            Resource:
+              - "*"
+      RouteTableIds:
+        - !Ref RouteTable
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcId: !Ref VPC
+  WazuhServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable SSH and Wazuh Server access and internal ICMP
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocation
+        - IpProtocol: tcp
+          FromPort: '1514'
+          ToPort: '1514'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: '1514'
+          ToPort: '1514'
+          CidrIp: 0.0.0.0/0          
+        - IpProtocol: tcp
+          FromPort: '1515'
+          ToPort: '1515'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '1516'
+          ToPort: '1516'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: '514'
+          ToPort: '514'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: '514'
+          ToPort: '514'
+          CidrIp: 0.0.0.0/0          
+        - IpProtocol: tcp
+          FromPort: '55000'
+          ToPort: '55000'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: -1
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: icmp
+          FromPort: 8
+          ToPort: -1
+          CidrIp: 10.0.0.0/24
+  WazuhIndexSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable SSH and Wazuh Index access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocation
+        - IpProtocol: tcp
+          FromPort: '9200'
+          ToPort: '9200'
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: tcp
+          FromPort: '9300'
+          ToPort: '9400'
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: -1
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: icmp
+          FromPort: 8
+          ToPort: -1
+          CidrIp: 10.0.0.0/24
+  WazuhDashboardSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      VpcId: !Ref VPC
+      GroupDescription: Enable SSH and Wazuh Dashboard access
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: !Ref SSHLocation
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: -1
+          FromPort: '0'
+          ToPort: '65535'
+          CidrIp: 10.0.0.0/24
+        - IpProtocol: icmp
+          FromPort: 8
+          ToPort: -1
+          CidrIp: 10.0.0.0/24
+  NetworkLoadBalancer:
+    DependsOn: NLBIPAddress
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: network
+      IpAddressType: ipv4
+      Name: WazuhNLB
+      Scheme: internet-facing
+      SubnetMappings: 
+        - AllocationId: !GetAtt NLBIPAddress.AllocationId
+          SubnetId: !Ref Subnet
+  NLBTargetGroup1514:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ELBTargetGroup1514
+      Port: 1514
+      Protocol: TCP
+      VpcId: !Ref VPC
+      HealthCheckEnabled: True
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 1514
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      Targets:
+        - Id: !Ref WazuhMasterInstance
+          Port: 1514
+        - Id: !Ref WazuhWork1Instance
+          Port: 1514
+        - Id: !Ref WazuhMasterInstance
+      TargetType: instance  
+  NLBTargetGroup1515:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ELBTargetGroup1515
+      Port: 1515
+      Protocol: TCP
+      VpcId: !Ref VPC
+      HealthCheckEnabled: True
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 1515
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      Targets:
+        - Id: !Ref WazuhMasterInstance
+          Port: 1515
+        - Id: !Ref WazuhWork1Instance
+          Port: 1515 
+      TargetType: instance
+  NLBTargetGroup1516:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: ELBTargetGroup1516
+      Port: 1516
+      Protocol: TCP
+      VpcId: !Ref VPC
+      HealthCheckEnabled: True
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPort: 1516
+      HealthCheckProtocol: TCP
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 3
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: 60
+      Targets:
+        - Id: !Ref WazuhMasterInstance
+          Port: 1516
+        - Id: !Ref WazuhWork1Instance
+          Port: 1516          
+      TargetType: instance
+  NetworkLoadBalancerListener1514:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup1514
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '1514'
+      Protocol: TCP         
+  NetworkLoadBalancerListener1515:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup1515
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '1515'
+      Protocol: TCP     
+  NetworkLoadBalancerListener1516:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref NLBTargetGroup1516
+      LoadBalancerArn: !Ref NetworkLoadBalancer
+      Port: '1516'
+      Protocol: TCP     
+  WazuhIndexNode1Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: AttachGateway
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap 
+        - AWSRegionArch2AMI
+        - !Ref 'AWS::Region'
+        - !FindInMap 
+          - AWSInstanceType2Arch
+          - !Ref WazuhIndexInstanceType
+          - Arch
+      InstanceType: !Ref WazuhIndexInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref WazuhIndexSecurityGroup
+          AssociatePublicIpAddress: 'true'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.0.6
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y > ${UpdateLogFile} 
+          curl -so /home/ec2-user/config.yml https://raw.githubusercontent.com/Samuellinda/CFtemp/main/config.yml
+          aws s3 cp /home/ec2-user/config.yml s3://${S3Bucket}/ > ${WazuhLogFile}
+          echo "Downloading script and install Wazuh Index node1 ..." >> ${WazuhLogFile} 
+          curl -so /home/ec2-user/wazuh-install.sh https://packages.wazuh.com/4.3/wazuh-install.sh 
+          curl -so /home/ec2-user/wazuh-certs-tool.sh https://packages.wazuh.com/4.3/wazuh-certs-tool.sh 
+          curl -so /home/ec2-user/wazuh-passwords-tool.sh https://packages.wazuh.com/4.3/wazuh-passwords-tool.sh 
+          bash /home/ec2-user/wazuh-certs-tool.sh -A >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --generate-config-files >> ${WazuhLogFile}
+          tar -cvf /home/ec2-user/wazuh-certificates.tar -C /home/ec2-user/wazuh-certificates/ . >> ${WazuhLogFile}
+          rm -rf /home/ec2-user/wazuh-certificates >> ${WazuhLogFile}
+          aws s3 cp /home/ec2-user/wazuh-certificates.tar s3://${S3Bucket}/ >> ${WazuhLogFile}
+          aws s3 cp /home/ec2-user/wazuh-install-files.tar s3://${S3Bucket}/ >> ${WazuhLogFile}
+          aws s3 cp /home/ec2-user/wazuh-install.sh s3://${S3Bucket}/  >> ${WazuhLogFile}
+          aws s3 cp /home/ec2-user/wazuh-passwords-tool.sh s3://${S3Bucket}/  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/config.yml /home/ec2-user/config1.yml >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --wazuh-indexer node-1 >> ${WazuhLogFile}
+          # Running wazuh-install.sh will delete config.yml file!
+          bash /home/ec2-user/wazuh-install.sh --start-cluster >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-passwords-tool.sh -u admin -p Wazuh-3456 >> ${WazuhLogFile}
+          # systemctl restart wazuh-dashboard >> ${WazuhLogFile}
+  WazuhIndexNode2Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: WazuhIndexNode1Instance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap 
+        - AWSRegionArch2AMI
+        - !Ref 'AWS::Region'
+        - !FindInMap 
+          - AWSInstanceType2Arch
+          - !Ref WazuhIndexInstanceType
+          - Arch
+      InstanceType: !Ref WazuhIndexInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref WazuhIndexSecurityGroup
+          AssociatePublicIpAddress: 'true'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.0.7
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y > ${UpdateLogFile} 
+          echo "Downloading script and install Wazuh Index node2 ..." >> ${WazuhLogFile} 
+          aws s3 cp s3://${S3Bucket}/wazuh-install-files.tar /home/ec2-user/wazuh-install-files.tar >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/config.yml ./home/ec2-user/config.yml >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-install.sh /home/ec2-user/wazuh-install.sh  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-install.sh /home/ec2-user/wazuh-install.sh  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-certificates.tar /home/ec2-user/wazuh-certificates.tar  >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --wazuh-indexer node-2 >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-install.sh --start-cluster >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-passwords-tool.sh -u admin -p Wazuh-3456 >> ${WazuhLogFile}
+          # systemctl restart wazuh-dashboard >> ${WazuhLogFile}        
+  WazuhMasterInstance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: WazuhIndexNode2Instance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap 
+        - AWSRegionArch2AMI
+        - !Ref 'AWS::Region'
+        - !FindInMap 
+          - AWSInstanceType2Arch
+          - !Ref WazuhIndexInstanceType
+          - Arch
+      InstanceType: !Ref WazuhIndexInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref WazuhServerSecurityGroup
+          AssociatePublicIpAddress: 'true'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.0.10
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y > ${UpdateLogFile} 
+          echo "Downloading script and install Wazuh Work(Master) node1 ..." >> ${WazuhLogFile} 
+          aws s3 cp s3://${S3Bucket}/wazuh-install-files.tar /home/ec2-user/wazuh-install-files.tar >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/config.yml ./home/ec2-user/config.yml >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-install.sh /home/ec2-user/wazuh-install.sh  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-certificates.tar /home/ec2-user/wazuh-certificates.tar  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-passwords-tool.sh /home/ec2-user/wazuh-passwords-tool.sh  >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --wazuh-server wazuh-1 >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-passwords-tool.sh -u admin -p Wazuh-3456 >> ${WazuhLogFile}
+          # systemctl restart wazuh-dashboard >> ${WazuhLogFile}  
+  WazuhWork1Instance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: WazuhMasterInstance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap 
+        - AWSRegionArch2AMI
+        - !Ref 'AWS::Region'
+        - !FindInMap 
+          - AWSInstanceType2Arch
+          - !Ref WazuhWorkInstanceType
+          - Arch
+      InstanceType: !Ref WazuhWorkInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref WazuhServerSecurityGroup
+          AssociatePublicIpAddress: 'true'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.0.11
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y > ${UpdateLogFile} 
+          echo "Downloading script and install Wazuh Work(Master) node2 ..." >> ${WazuhLogFile} 
+          aws s3 cp s3://${S3Bucket}/wazuh-install-files.tar /home/ec2-user/wazuh-install-files.tar >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/config.yml ./home/ec2-user/config.yml >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-install.sh /home/ec2-user/wazuh-install.sh  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-certificates.tar /home/ec2-user/wazuh-certificates.tar  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-passwords-tool.sh /home/ec2-user/wazuh-passwords-tool.sh  >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --wazuh-server wazuh-2 >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-passwords-tool.sh -u admin -p Wazuh-3456 >> ${WazuhLogFile}
+          # systemctl restart wazuh-dashboard >> ${WazuhLogFile}  
+  WazuhDashboardInstance:
+    Type: 'AWS::EC2::Instance'
+    DependsOn: WazuhWork1Instance
+    Properties:
+      IamInstanceProfile: !Ref InstanceProfile
+      ImageId: !FindInMap 
+        - AWSRegionArch2AMI
+        - !Ref 'AWS::Region'
+        - !FindInMap 
+          - AWSInstanceType2Arch
+          - !Ref WazuhDashboardInstanceType
+          - Arch
+      InstanceType: !Ref WazuhDashboardInstanceType
+      KeyName: !Ref KeyName
+      Tags:
+        - Key: Application
+          Value: !Ref 'AWS::StackId'
+      NetworkInterfaces:
+        - GroupSet:
+            - !Ref WazuhDashboardSecurityGroup
+          AssociatePublicIpAddress: 'true'
+          DeviceIndex: '0'
+          DeleteOnTermination: 'true'
+          SubnetId: !Ref Subnet
+          PrivateIpAddress: 10.0.0.20
+      UserData: 
+        Fn::Base64: !Sub |
+          #!/bin/bash -xe
+          yum update -y > ${UpdateLogFile} 
+          echo "Downloading script and install Wazuh Dashboard ..." >> ${WazuhLogFile} 
+          aws s3 cp s3://${S3Bucket}/wazuh-install-files.tar /home/ec2-user/wazuh-install-files.tar >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/config.yml ./home/ec2-user/config.yml >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-install.sh /home/ec2-user/wazuh-install.sh  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-certificates.tar /home/ec2-user/wazuh-certificates.tar  >> ${WazuhLogFile}
+          aws s3 cp s3://${S3Bucket}/wazuh-passwords-tool.sh /home/ec2-user/wazuh-passwords-tool.sh  >> ${WazuhLogFile}
+          bash /home/ec2-user/wazuh-install.sh --wazuh-dashboard dashboard >> ${WazuhLogFile}
+          tar -O -xvf wazuh-install-files.tar wazuh-install-files/wazuh-passwords.txt >> ${WazuhLogFile}
+          # bash /home/ec2-user/wazuh-passwords-tool.sh -u admin -p Wazuh-3456 >> ${WazuhLogFile}
+          # systemctl restart wazuh-dashboard >> ${WazuhLogFile}  
+Outputs:
+  VpcId:
+    Description: ID of the Wazuh VPC.
+    Value: !Ref VPC  
+  SubnetIds:
+    Description: ID of the Wazuh Subnet.
+    Value: !Ref Subnet  
+  WazuhIndexNode1:
+    Value: !Join 
+      - ''
+      - - 'Index Node1 IP Address:'
+        - !GetAtt 
+          - WazuhIndexNode1Instance
+          - PublicIp
+    Description: Wazuh Index Node1 IP
+  WazuhIndexNode2:
+    Value: !Join 
+      - ''
+      - - 'Index Node2 IP Address:'
+        - !GetAtt 
+          - WazuhIndexNode2Instance
+          - PublicIp
+    Description: Wazuh Index Node2 IP    
+  WazuhWorkerNode1:
+    Value: !Join 
+      - ''
+      - - 'Work (Master) Node1 IP Address:'
+        - !GetAtt 
+          - WazuhMasterInstance
+          - PublicIp
+    Description: Wazuh Work (Master) Node1 IP   
+  WazuhWorkerNode2:
+    Value: !Join 
+      - ''
+      - - 'Work Node2 IP Address:'
+        - !GetAtt 
+          - WazuhWork1Instance
+          - PublicIp
+    Description: Wazuh Work Node2 IP       
+  WazuhDashboardNode:
+    Value: !Join 
+      - ''
+      - - 'https://'
+        - !GetAtt 
+          - WazuhDashboardInstance
+          - PublicIp
+    Description: Wazuh Dashboard IP          
+  S3Bucket:
+    Description: Bucket Created for share configuration file.
+    Value: !Ref S3Bucket
+  NLBEIP:
+    Description: NLB EIP
+    Value: !Ref NLBIPAddress
